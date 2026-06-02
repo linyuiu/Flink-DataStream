@@ -8,6 +8,8 @@ services:
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
+    volumes:
+      - ./flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.3.0-1.19.jar
     networks:
       - flink-network
 
@@ -21,6 +23,8 @@ services:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
         taskmanager.numberOfTaskSlots: 4
+    volumes:
+      - ./flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.3.0-1.19.jar
     networks:
       - flink-network
 
