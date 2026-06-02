@@ -1,0 +1,8 @@
+git clone https://github.com/apache/flink-playgrounds.git
+cd flink-playgrounds/operations-playground
+docker-compose build
+
+mkdir -p /tmp/flink-checkpoints-directory
+mkdir -p /tmp/flink-savepoints-directory
+
+docker-compose up -d
