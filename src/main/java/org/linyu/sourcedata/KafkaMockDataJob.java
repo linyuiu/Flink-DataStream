@@ -1,10 +1,8 @@
 package org.linyu.sourcedata;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.connector.base.DeliveryGuarantee;
-import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
-import org.apache.flink.connector.kafka.sink.KafkaSink;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 
@@ -16,6 +14,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
 
 /**
@@ -23,7 +22,7 @@ import java.util.Random;
  */
 public class KafkaMockDataJob {
 
-    private static final String BROKERS = "localhost:9092";
+    private static final String BROKERS = "kafka:9092";
     private static final long INTERVAL_MS = 1000L;
     private static final int USER_COUNT = 200;
     private static final int SKU_COUNT = 50;
@@ -38,36 +37,12 @@ public class KafkaMockDataJob {
 
         env.setParallelism(1);
 
-        env.addSource(new OrderDetailSource(INTERVAL_MS, USER_COUNT, SKU_COUNT))
-                .name("mock-order-detail-source")
-                .sinkTo(buildKafkaSink(BROKERS, ORDER_DETAIL_TOPIC))
-                .name("mock-order-detail-kafka-sink");
-
-        env.addSource(new UserActiveLogSource(INTERVAL_MS, USER_COUNT))
-                .name("mock-user-active-log-source")
-                .sinkTo(buildKafkaSink(BROKERS, USER_ACTIVE_TOPIC))
-                .name("mock-user-active-log-kafka-sink");
-
-        env.addSource(new DimUserSource(INTERVAL_MS, USER_COUNT))
-                .name("mock-dim-user-source")
-                .sinkTo(buildKafkaSink(BROKERS, DIM_USER_TOPIC))
-                .name("mock-dim-user-kafka-sink");
+        env.addSource(new MockDataProducerSource(INTERVAL_MS, USER_COUNT, SKU_COUNT))
+                .name("mock-data-producer-source")
+                .print()
+                .name("mock-data-progress-print");
 
         env.execute("Kafka Mock Data Job");
-    }
-
-    private static KafkaSink<String> buildKafkaSink(String brokers, String topic) {
-        return KafkaSink.<String>builder()
-                .setBootstrapServers(brokers)
-                .setRecordSerializer(
-                        KafkaRecordSerializationSchema.builder()
-                                .setTopic(topic)
-                                .setValueSerializationSchema(new SimpleStringSchema())
-                                .build()
-                )
-                // 模拟数据允许少量重复，使用 at-least-once 可以避免 exactly-once 事务配置的额外要求。
-                .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
-                .build();
     }
 
     private abstract static class BaseJsonSource extends RichParallelSourceFunction<String> {
@@ -79,7 +54,6 @@ public class KafkaMockDataJob {
         protected final int userCount;
         protected final Random random = new Random();
 
-        private transient ObjectMapper objectMapper;
         private volatile boolean running = true;
 
         protected BaseJsonSource(long intervalMs, int userCount) {
@@ -96,11 +70,78 @@ public class KafkaMockDataJob {
             return running;
         }
 
-        protected String toJson(Map<String, Object> row) throws Exception {
-            if (objectMapper == null) {
-                objectMapper = new ObjectMapper();
+        protected String toJson(Map<String, Object> row) {
+            StringBuilder builder = new StringBuilder();
+            builder.append('{');
+
+            boolean first = true;
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                if (!first) {
+                    builder.append(',');
+                }
+                first = false;
+
+                builder.append('"')
+                        .append(escapeJson(entry.getKey()))
+                        .append("\":");
+                appendJsonValue(builder, entry.getValue());
             }
-            return objectMapper.writeValueAsString(row);
+
+            builder.append('}');
+            return builder.toString();
+        }
+
+        private void appendJsonValue(StringBuilder builder, Object value) {
+            if (value == null) {
+                builder.append("null");
+                return;
+            }
+
+            if (value instanceof Number || value instanceof Boolean) {
+                builder.append(value);
+                return;
+            }
+
+            builder.append('"')
+                    .append(escapeJson(value.toString()))
+                    .append('"');
+        }
+
+        private String escapeJson(String value) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < value.length(); i++) {
+                char c = value.charAt(i);
+                switch (c) {
+                    case '"':
+                        builder.append("\\\"");
+                        break;
+                    case '\\':
+                        builder.append("\\\\");
+                        break;
+                    case '\b':
+                        builder.append("\\b");
+                        break;
+                    case '\f':
+                        builder.append("\\f");
+                        break;
+                    case '\n':
+                        builder.append("\\n");
+                        break;
+                    case '\r':
+                        builder.append("\\r");
+                        break;
+                    case '\t':
+                        builder.append("\\t");
+                        break;
+                    default:
+                        if (c < 0x20) {
+                            builder.append(String.format("\\u%04x", (int) c));
+                        } else {
+                            builder.append(c);
+                        }
+                }
+            }
+            return builder.toString();
         }
 
         protected String userId(int index) {
@@ -127,54 +168,130 @@ public class KafkaMockDataJob {
         }
     }
 
-    private static class OrderDetailSource extends BaseJsonSource {
+    private static class MockDataProducerSource extends BaseJsonSource {
 
         private final int skuCount;
 
+        private transient KafkaProducer<String, String> producer;
         private long orderSeq = 1L;
+        private int currentActiveUserIndex = 1;
+        private int currentDimUserIndex = 1;
+        private LocalDate activeLogicalDate = LocalDate.now();
+        private LocalDate dimLogicalDate = LocalDate.now();
 
-        private OrderDetailSource(long intervalMs, int userCount, int skuCount) {
+        private MockDataProducerSource(long intervalMs, int userCount, int skuCount) {
             super(intervalMs, userCount);
             this.skuCount = skuCount;
         }
 
         @Override
+        public void open(org.apache.flink.configuration.Configuration parameters) {
+            Properties props = new Properties();
+            props.put("bootstrap.servers", BROKERS);
+            props.put("key.serializer", StringSerializer.class.getName());
+            props.put("value.serializer", StringSerializer.class.getName());
+            props.put("acks", "1");
+            props.put("retries", "3");
+            producer = new KafkaProducer<>(props);
+        }
+
+        @Override
         public void run(SourceContext<String> ctx) throws Exception {
+            long count = 0L;
+
             while (isRunning()) {
-                LocalDateTime createTime =
-                        LocalDateTime.now().minusMinutes(random.nextInt(120));
-                String orderStatus = randomOrderStatus();
-                LocalDateTime payTime =
-                        "CREATED".equals(orderStatus)
-                                ? null
-                                : createTime.plusMinutes(1 + random.nextInt(30));
+                sendOrderDetail();
+                sendUserActiveLog();
+                sendDimUser();
 
-                BigDecimal payAmount = randomAmount(20, 500);
-                BigDecimal refundAmount =
-                        "REFUNDED".equals(orderStatus)
-                                ? payAmount
-                                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("order_id", "O" + System.currentTimeMillis() + "_" + orderSeq++);
-                row.put("user_id", userId(1 + random.nextInt(userCount)));
-                row.put("sku_id", String.valueOf(1 + random.nextInt(skuCount)));
-                row.put("pay_amount", payAmount);
-                row.put("refund_amount", refundAmount);
-                row.put("order_status", orderStatus);
-                row.put("create_time", createTime.format(DATE_TIME_FORMATTER));
-                row.put(
-                        "pay_time",
-                        payTime == null ? "" : payTime.format(DATE_TIME_FORMATTER)
-                );
-                row.put("dt", dt(createTime));
-
-                synchronized (ctx.getCheckpointLock()) {
-                    ctx.collect(toJson(row));
+                count++;
+                if (count % 10 == 0) {
+                    ctx.collect("mock data sent: " + count + " batches");
                 }
 
                 pause();
             }
+        }
+
+        @Override
+        public void close() {
+            if (producer != null) {
+                producer.flush();
+                producer.close();
+            }
+        }
+
+        private void sendOrderDetail() throws Exception {
+            LocalDateTime createTime =
+                    LocalDateTime.now().minusMinutes(random.nextInt(120));
+            String orderStatus = randomOrderStatus();
+            LocalDateTime payTime =
+                    "CREATED".equals(orderStatus)
+                            ? null
+                            : createTime.plusMinutes(1 + random.nextInt(30));
+
+            BigDecimal payAmount = randomAmount(20, 500);
+            BigDecimal refundAmount =
+                    "REFUNDED".equals(orderStatus)
+                            ? payAmount
+                            : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("order_id", "O" + System.currentTimeMillis() + "_" + orderSeq++);
+            row.put("user_id", userId(1 + random.nextInt(userCount)));
+            row.put("sku_id", String.valueOf(1 + random.nextInt(skuCount)));
+            row.put("pay_amount", payAmount);
+            row.put("refund_amount", refundAmount);
+            row.put("order_status", orderStatus);
+            row.put("create_time", createTime.format(DATE_TIME_FORMATTER));
+            row.put(
+                    "pay_time",
+                    payTime == null ? "" : payTime.format(DATE_TIME_FORMATTER)
+            );
+            row.put("dt", dt(createTime));
+
+            send(ORDER_DETAIL_TOPIC, row.get("order_id").toString(), row);
+        }
+
+        private void sendUserActiveLog() throws Exception {
+            LocalDateTime activeTime = randomTimeInDay(activeLogicalDate);
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("user_id", userId(currentActiveUserIndex));
+            row.put("active_time", activeTime.format(DATE_TIME_FORMATTER));
+            row.put("dt", activeLogicalDate.toString());
+
+            send(USER_ACTIVE_TOPIC, row.get("user_id").toString(), row);
+
+            currentActiveUserIndex++;
+            if (currentActiveUserIndex > userCount) {
+                currentActiveUserIndex = 1;
+                // 保证活跃日志满足“一天一用户一条”，完整输出一天用户后再推进到下一天。
+                activeLogicalDate = activeLogicalDate.plusDays(1);
+            }
+        }
+
+        private void sendDimUser() throws Exception {
+            LocalDateTime registerTime =
+                    randomTimeInDay(dimLogicalDate.minusDays(1 + random.nextInt(365)));
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("user_id", userId(currentDimUserIndex));
+            row.put("register_time", registerTime.format(DATE_TIME_FORMATTER));
+            row.put("dt", dimLogicalDate.toString());
+
+            send(DIM_USER_TOPIC, row.get("user_id").toString(), row);
+
+            currentDimUserIndex++;
+            if (currentDimUserIndex > userCount) {
+                currentDimUserIndex = 1;
+                // 维度表按 dt 生成每日快照，便于和事实表按分区日期关联。
+                dimLogicalDate = dimLogicalDate.plusDays(1);
+            }
+        }
+
+        private void send(String topic, String key, Map<String, Object> row) throws Exception {
+            producer.send(new ProducerRecord<>(topic, key, toJson(row)));
         }
 
         private String randomOrderStatus() {
@@ -197,80 +314,4 @@ public class KafkaMockDataJob {
         }
     }
 
-    private static class UserActiveLogSource extends BaseJsonSource {
-
-        private int currentUserIndex = 1;
-        private LocalDate logicalDate = LocalDate.now();
-
-        private UserActiveLogSource(long intervalMs, int userCount) {
-            super(intervalMs, userCount);
-        }
-
-        @Override
-        public void run(SourceContext<String> ctx) throws Exception {
-            while (isRunning()) {
-                LocalDateTime activeTime = randomTimeInDay(logicalDate);
-
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("user_id", userId(currentUserIndex));
-                row.put("active_time", activeTime.format(DATE_TIME_FORMATTER));
-                row.put("dt", logicalDate.toString());
-
-                synchronized (ctx.getCheckpointLock()) {
-                    ctx.collect(toJson(row));
-                }
-
-                nextUserAndDate();
-                pause();
-            }
-        }
-
-        private void nextUserAndDate() {
-            currentUserIndex++;
-            if (currentUserIndex > userCount) {
-                currentUserIndex = 1;
-                // 保证活跃日志满足“一天一用户一条”，完整输出一天用户后再推进到下一天。
-                logicalDate = logicalDate.plusDays(1);
-            }
-        }
-    }
-
-    private static class DimUserSource extends BaseJsonSource {
-
-        private int currentUserIndex = 1;
-        private LocalDate logicalDate = LocalDate.now();
-
-        private DimUserSource(long intervalMs, int userCount) {
-            super(intervalMs, userCount);
-        }
-
-        @Override
-        public void run(SourceContext<String> ctx) throws Exception {
-            while (isRunning()) {
-                LocalDateTime registerTime =
-                        randomTimeInDay(logicalDate.minusDays(1 + random.nextInt(365)));
-
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("user_id", userId(currentUserIndex));
-                row.put("register_time", registerTime.format(DATE_TIME_FORMATTER));
-                row.put("dt", logicalDate.toString());
-
-                synchronized (ctx.getCheckpointLock()) {
-                    ctx.collect(toJson(row));
-                }
-
-                nextUserAndDate();
-                pause();
-            }
-        }
-
-        private void nextUserAndDate() {
-            currentUserIndex++;
-            if (currentUserIndex > userCount) {
-                currentUserIndex = 1;
-                // 维度表按 dt 生成每日快照，便于和事实表按分区日期关联。
-                logicalDate = logicalDate.plusDays(1);
-            }
-        }
-    }
 }

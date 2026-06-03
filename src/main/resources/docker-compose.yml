@@ -53,6 +53,18 @@ services:
     networks:
       - flink-network
 
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: flink_realtime
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - flink-network
+
 networks:
   flink-network:
     name: flink-network

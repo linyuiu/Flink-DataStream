@@ -6,3 +6,8 @@ mkdir -p /tmp/flink-checkpoints-directory
 mkdir -p /tmp/flink-savepoints-directory
 
 docker-compose up -d
+
+
+org.linyu.sourcedata.KafkaMockDataJob
+
+org.inyu.order.UnpaidOrderTimeoutJob
