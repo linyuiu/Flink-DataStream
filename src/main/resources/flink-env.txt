@@ -1,0 +1,164 @@
+git clone https://github.com/apache/flink-playgrounds.git
+cd flink-playgrounds/operations-playground
+docker-compose build
+
+mkdir -p /tmp/flink-checkpoints-directory
+mkdir -p /tmp/flink-savepoints-directory
+
+docker-compose up -d
+
+
+org.linyu.sourcedata.KafkaMockDataJob
+
+org.inyu.order.UnpaidOrderTimeoutJob
+
+## 求职意向
+
+**大数据开发工程师 / 数据仓库开发工程师 / 实时数仓开发工程师**
+期望城市：杭州
+期望薪资：16K-22K
+
+---
+
+## 个人优势
+
+熟悉离线数仓与实时数仓建设，掌握 Hadoop、Hive、Kafka、Flink SQL、Flink DataStream API、Flink CDC、Maxwell、DataX、Doris/ClickHouse、PostgreSQL、DolphinScheduler、Superset/SugarBI 等常用大数据技术栈。参与过业务数据采集、ODS/DWD/DWS/ADS 分层建模、指标口径梳理、离线与实时指标开发、OLAP 数据落地及 BI 看板展示。能够围绕订单、商品、用户、地区等业务主题开发 GMV、订单数、支付用户数、商品 TopN、地区 TopN、同比环比、滚动活跃、用户生命周期等经营分析指标。
+
+---
+
+## 专业技能
+
+1. **离线数仓：** 熟悉 HDFS、Hive、DataX、DolphinScheduler，了解 ODS、DWD、DWS、ADS 数仓分层设计，能够进行事实表、维度表、汇总表开发。
+2. **Hive SQL：** 熟悉 Hive 复杂查询、多表 Join、分组聚合、去重、窗口函数、TopN、同比环比、留存、滚动活跃、用户生命周期分层等常见分析场景。
+3. **窗口函数：** 熟悉 `row_number`、`rank`、`dense_rank`、`lag`、`lead`、`sum over` 等窗口函数，可用于最近一笔订单、连续登录、TopN、累计值、同比环比等场景。
+4. **指标口径：** 熟悉 GMV、订单数、支付用户数、客单价、转化率、留存率、活跃用户数等指标口径设计，能够明确时间字段、订单状态、退款扣减、去重逻辑、统计周期等规则。
+5. **实时计算：** 熟悉 Kafka、Flink SQL、Flink DataStream API、Flink CDC、Maxwell，了解 Watermark、Window、State、Timer、Checkpoint、Exactly-Once、状态 TTL 等实时计算机制。
+6. **实时链路：** 熟悉 MySQL/PostgreSQL → Flink CDC/Maxwell → Kafka → Flink → Doris/ClickHouse 的实时数据链路建设。
+7. **OLAP 与 BI：** 熟悉 Doris/ClickHouse 基础使用，能够将 ADS 层指标结果写入 OLAP 数据库，为 Superset/SugarBI 等 BI 工具提供查询数据源。
+8. **数据治理：** 了解数据质量校验、任务失败重跑、元数据管理、血缘关系、敏感字段脱敏、Join 后金额膨胀排查等常见数据治理问题。
+9. **工程能力：** 熟悉 Java 基础、Maven、Linux、Git、Docker，了解 K8s 环境下服务部署与基础运维。
+
+---
+
+## 工作经历
+
+### 杭州飞致云信息科技有限公司｜数据开发工程师
+
+**工作时间：** 20XX.XX - 至今
+**技术栈：** Hadoop、Hive、Kafka、Flink SQL、Flink DataStream API、Flink CDC、Maxwell、DataX、Doris/ClickHouse、PostgreSQL、DolphinScheduler、Superset/SugarBI、Docker、K8s
+
+#### 工作内容
+
+1. 参与公司数据平台和数据仓库建设，负责业务数据从采集、清洗、建模、指标加工到 BI 展示的全链路开发工作。
+2. 参与 ODS、DWD、DWS、ADS 数仓分层设计，围绕订单、商品、用户、地区等主题建设明细事实表、维度表和汇总指标表。
+3. 负责业务库数据离线与实时采集，基于 DataX 完成 MySQL/PostgreSQL 到 HDFS/Hive 的离线同步，基于 Maxwell/Flink CDC 采集业务库增量数据写入 Kafka。
+4. 基于 Hive SQL 开发离线经营分析指标，包括 GMV、订单数、支付金额、支付用户数、客单价、商品 TopN、地区 TopN、同比环比、最近 7 天滚动活跃用户等指标。
+5. 基于 Flink SQL / Flink DataStream API 开发实时指标链路，对订单、商品、用户等实时数据进行清洗、关联、聚合，并将结果写入 Doris/ClickHouse。
+6. 参与指标口径梳理，明确订单状态、支付时间、退款金额、取消订单、重复订单、统计周期、维度关联等规则，保障 BI 看板数据与业务口径一致。
+7. 参与 Hive SQL 复杂查询和性能优化，处理多表 Join、窗口函数、TopN、拉链表取有效状态、Join 后金额膨胀、重复数据去重等问题。
+8. 使用 DolphinScheduler 编排离线任务，配置任务依赖、失败重跑、任务告警，保障核心报表和看板数据按时产出。
+9. 参与数据治理工作，对手机号、身份证号等敏感字段进行脱敏处理，配合元数据管理工具维护表结构、字段说明和血缘关系。
+10. 配合业务部门完成 Superset/SugarBI 看板建设，提供订单分析、商品分析、地区分析、经营大盘等数据接口和指标表。
+
+---
+
+## 项目经历一：离线数仓与经营分析指标建设
+
+**项目背景：**
+公司业务系统中订单、商品、用户、地区等数据分散在多个业务库中，业务部门需要按天查看 GMV、订单数、支付用户数、商品销量 TopN、地区销售 TopN、同比环比等经营指标。为提升数据分析效率，建设离线数仓链路，将业务库数据同步至 Hive，经过数仓分层加工后输出到 ADS 层，为 BI 看板提供数据支持。
+
+**技术栈：**
+DataX、HDFS、Hive、DolphinScheduler、PostgreSQL、Superset/SugarBI
+
+**个人职责：**
+
+1. 参与离线数仓分层设计，按照 ODS、DWD、DWS、ADS 结构建设订单、商品、用户、地区等主题数据表。
+2. 基于 DataX 将 MySQL/PostgreSQL 业务库数据同步至 HDFS/Hive，完成订单表、订单明细表、商品表、用户表、地区表等数据采集。
+3. 负责 DWD 层订单明细事实表开发，对订单状态、支付时间、退款金额、取消订单、重复订单等字段进行清洗和标准化处理。
+4. 负责 DWS 层主题汇总表开发，按用户、商品、地区、日期等维度汇总订单数、支付金额、支付用户数、退款金额等指标。
+5. 负责 ADS 层经营分析指标表开发，支持 GMV、订单数、支付用户数、客单价、商品 TopN、地区 TopN、同比环比等看板指标。
+6. 基于窗口函数完成复杂分析需求，包括每个用户最近一笔订单、商品销售 TopN、地区销售 TopN、最近 7 天滚动活跃用户、用户生命周期分层等。
+7. 参与拉链表设计，保存用户、商品等维度历史状态，支持按订单发生时间关联当时有效的维度信息，避免历史指标统计错误。
+8. 参与 Join 后金额膨胀问题排查，通过对比 Join 前后行数、订单去重数、金额汇总结果，定位维表主键重复、一对多关联、标签多值展开等问题。
+9. 使用 DolphinScheduler 配置离线任务调度，设置任务依赖、失败重跑和告警机制，保障每日核心指标稳定产出。
+
+**项目成果：**
+
+1. 完成订单、商品、用户、地区等主题数据表建设，为经营分析看板提供稳定的数据基础。
+2. 支持业务按天、地区、商品、渠道等维度查看 GMV、订单数、支付用户数、商品 TopN、地区 TopN 等核心指标。
+3. 通过统一指标口径，明确支付时间、订单状态、退款扣减、去重逻辑等规则，减少不同报表之间数据不一致问题。
+4. 通过分区裁剪、字段裁剪、Join 优化、小文件合并、窗口函数优化等方式，提升部分核心 Hive 任务执行效率。
+
+---
+
+## 项目经历二：实时数仓与实时经营看板建设
+
+**项目背景：**
+原有经营分析报表主要依赖 T+1 离线统计，无法满足业务部门对实时订单成交、商品销售、地区销售排名等指标的查看需求。为提升实时运营分析能力，建设 Kafka + Flink + Doris/ClickHouse 实时数仓链路，实现订单、商品、用户等核心数据的实时采集、计算和展示。
+
+**技术栈：**
+Kafka、Flink SQL、Flink DataStream API、Flink CDC、Maxwell、Doris/ClickHouse、PostgreSQL、Superset/SugarBI
+
+**个人职责：**
+
+1. 参与实时数仓链路设计，基于 Maxwell/Flink CDC 采集业务库订单、商品、用户等增量变更数据，并写入 Kafka ODS Topic。
+2. 参与 Kafka Topic 规划，按照订单、商品、用户等业务主题划分实时数据流，为后续 Flink 实时计算提供数据源。
+3. 基于 Flink SQL 对 Kafka 数据进行清洗和转换，过滤无效数据，统一字段格式，处理订单状态、支付时间、退款金额等关键字段。
+4. 基于 Flink SQL / Flink DataStream API 开发实时指标，包括实时 GMV、实时订单数、实时支付用户数、商品销售 TopN、地区销售 TopN 等。
+5. 参与 Flink 实时任务配置，了解 Watermark、Checkpoint、状态 TTL、Exactly-Once、Kafka Source/Sink 等机制，保障实时任务稳定运行。
+6. 将实时汇总结果写入 Doris/ClickHouse，支持 BI 大屏进行低延迟查询和多维分析。
+7. 参与实时链路问题排查，包括 Kafka 消费积压、Flink 任务重启、CDC 重复数据、维表关联异常、Join 后金额膨胀等问题。
+8. 配合业务部门完成实时经营看板建设，支持订单成交、商品销量、地区排名等核心指标分钟级展示。
+
+**项目成果：**
+
+1. 将部分核心经营指标由 T+1 离线统计提升为分钟级更新，提升业务部门对经营情况的实时感知能力。
+2. 建设订单、商品、用户等实时数据链路，为实时经营看板提供稳定数据源。
+3. 通过 Flink 实时计算和 Doris/ClickHouse OLAP 查询，提升实时看板查询性能和多维分析能力。
+4. 通过统一实时与离线指标口径，减少实时看板和离线报表之间的数据差异。
+
+---
+
+## 项目经历三：用户行为实时规则计算与营销触达候选事件建设
+
+**项目背景：**
+业务希望基于用户行为进行实时运营触达，例如用户创建待付款订单后一段时间仍未支付时，输出催付或优惠券候选事件；同时需要考虑用户触达频控，避免同一用户短时间内被重复推送，降低用户打扰和营销成本。
+
+**技术栈：**
+Kafka、Flink DataStream API、Flink CDC、Flink State、Timer、Checkpoint、Redis、Doris/ClickHouse
+
+**个人职责：**
+
+1. 参与用户行为实时规则链路设计，消费订单创建、支付成功、订单关闭等实时事件，按照用户和订单维度进行状态计算。
+2. 基于 Flink DataStream API 使用 KeyedProcessFunction / KeyedCoProcessFunction 处理多条实时事件流。
+3. 使用 ValueState 保存用户待付款订单状态，当订单进入待付款状态时注册 Timer，到达指定时间后检查订单是否仍未支付。
+4. 当支付成功事件到达时，清理对应订单状态并删除 Timer，避免用户已支付后仍被误触达。
+5. 当订单关闭或取消事件到达时，清理状态并终止该订单的触达判断，避免无效触达。
+6. 基于用户维度设计触达频控逻辑，限制同一用户同一规则在固定周期内重复触发，避免用户反复薅券或被频繁打扰。
+7. 通过 MapState/ListState 保存用户历史触达记录和候选触发记录，用于判断用户是否存在频繁待付款不支付等异常行为。
+8. Flink 仅输出营销触达候选事件到 Kafka，最终发券由营销系统结合订单状态、券库存、用户资格、Redis 幂等 Key 等进行二次校验。
+9. 将触达候选事件和触达结果写入 Doris/ClickHouse，用于运营看板分析和后续规则效果评估。
+
+**项目成果：**
+
+1. 实现待付款订单超时未支付的实时识别，为营销系统提供催付/优惠券候选事件。
+2. 通过 State + Timer 机制实现延迟判断，避免使用离线任务造成触达不及时。
+3. 通过用户维度频控、状态 TTL、幂等 Key、订单状态二次校验等机制，降低重复触达和误触达风险。
+4. 沉淀用户行为规则计算链路，为后续扩展加购未支付、重复加购、浏览未购买等实时营销场景提供基础。
+
+---
+
+## 可写在简历里的重点 SQL / 数据问题
+
+1. **同比环比：** 先按日期或月份聚合指标，再通过 `lag` 或日期自关联获取上一周期或去年同期数据，计算增长额和增长率。
+2. **每个用户最近一笔订单：** 使用 `row_number() over(partition by user_id order by pay_time desc)` 获取用户最近支付订单。
+3. **最近 7 天滚动活跃用户：** 通过日期维表关联过去 7 天活跃明细，使用 `count(distinct user_id)` 统计滚动活跃，避免直接累加 DAU 导致重复计算。
+4. **用户生命周期分层：** 基于注册时间、最近活跃时间、最近支付时间、累计支付金额等字段，将用户划分为新用户、活跃用户、沉默用户、流失用户、回流用户、高价值用户等。
+5. **拉链表取有效状态：** 使用 `start_date <= 业务日期 and end_date >= 业务日期` 关联维度表，保证事实数据关联到当时有效的历史维度状态。
+6. **Join 后金额膨胀排查：** 对比 Join 前后行数、订单去重数、金额汇总结果，检查维表主键是否重复、一对多关联是否合理，并通过维表去重、先聚合后关联、明确多值分摊口径等方式解决。
+
+---
+
+## 简历总结
+
+具备离线数仓和实时数仓开发经验，熟悉 Hive SQL、Flink SQL、Flink DataStream API、Kafka、Flink CDC、Doris/ClickHouse 等技术，能够完成从业务数据采集、数仓建模、指标口径梳理、复杂 SQL 开发、实时计算到 BI 看板展示的完整数据开发流程。对 GMV、订单数、支付用户数、TopN、同比环比、滚动活跃、用户生命周期、拉链表、Join 膨胀排查等常见数据开发场景有实践经验。
