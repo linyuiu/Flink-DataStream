@@ -1,4 +1,4 @@
-package org.inyu.order;
+package org.linyu.order;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

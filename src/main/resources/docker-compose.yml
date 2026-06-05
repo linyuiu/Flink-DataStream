@@ -12,6 +12,7 @@ services:
       - ./flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.3.0-1.19.jar
     networks:
       - flink-network
+      - doris-network
 
   taskmanager:
     image: flink:1.19.3-scala_2.12
@@ -27,6 +28,7 @@ services:
       - ./flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.3.0-1.19.jar
     networks:
       - flink-network
+      - doris-network
 
   kafka:
     image: apache/kafka:3.8.1
@@ -68,3 +70,6 @@ services:
 networks:
   flink-network:
     name: flink-network
+  doris-network:
+    external: true
+    name: doris_net

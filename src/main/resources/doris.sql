@@ -12,3 +12,18 @@ DISTRIBUTED BY HASH(trigger_id) BUCKETS 8
 PROPERTIES (
     "replication_num" = "1"
 );
+
+CREATE DATABASE IF NOT EXISTS linyu;
+
+CREATE TABLE IF NOT EXISTS linyu.ads_realtime_gvm (
+                                                      dt DATE,
+                                                      stat_time DATETIME,
+                                                      gmv DECIMAL(18,2),
+    paid_order_count BIGINT,
+    update_time DATETIME
+    )
+    DUPLICATE KEY(dt, stat_time)
+    DISTRIBUTED BY HASH(dt) BUCKETS 1
+    PROPERTIES (
+                   "replication_num" = "1"
+               );

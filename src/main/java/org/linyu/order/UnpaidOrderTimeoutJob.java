@@ -1,4 +1,4 @@
-package org.inyu.order;
+package org.linyu.order;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -132,7 +132,8 @@ public class UnpaidOrderTimeoutJob {
             return hasText(payTime)
                     || "PAID".equals(orderStatus)
                     || "FINISHED".equals(orderStatus)
-                    || "REFUNDED".equals(orderStatus);
+                    || "REFUNDED".equals(orderStatus)
+                    || "CANCELLED".equals(orderStatus);
         }
 
         public long eventTimeMs() {

@@ -26,6 +26,7 @@ public class KafkaMockDataJob {
     private static final long INTERVAL_MS = 1000L;
     private static final int USER_COUNT = 200;
     private static final int SKU_COUNT = 50;
+    private static final int CANCEL_ORDER_RATE = 20;
 
     private static final String ORDER_DETAIL_TOPIC = "dwd_order_detail";
     private static final String USER_ACTIVE_TOPIC = "dwd_user_active_log";
@@ -236,8 +237,10 @@ public class KafkaMockDataJob {
                             ? payAmount
                             : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
+            String orderId = "O" + System.currentTimeMillis() + "_" + orderSeq++;
+
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("order_id", "O" + System.currentTimeMillis() + "_" + orderSeq++);
+            row.put("order_id", orderId);
             row.put("user_id", userId(1 + random.nextInt(userCount)));
             row.put("sku_id", String.valueOf(1 + random.nextInt(skuCount)));
             row.put("pay_amount", payAmount);
@@ -250,7 +253,24 @@ public class KafkaMockDataJob {
             );
             row.put("dt", dt(createTime));
 
-            send(ORDER_DETAIL_TOPIC, row.get("order_id").toString(), row);
+            send(ORDER_DETAIL_TOPIC, orderId, row);
+
+            if (canCancel(orderStatus) && random.nextInt(100) < CANCEL_ORDER_RATE) {
+                sendCancelOrderDetail(orderId, row, payAmount);
+            }
+        }
+
+        private void sendCancelOrderDetail(
+                String orderId,
+                Map<String, Object> paidOrderRow,
+                BigDecimal payAmount
+        ) throws Exception {
+            Map<String, Object> cancelRow = new LinkedHashMap<>(paidOrderRow);
+            cancelRow.put("refund_amount", payAmount);
+            cancelRow.put("order_status", "CANCELLED");
+
+            // 使用同一个 order_id 模拟订单状态更新，Kafka 同 key 可以保证同分区内顺序。
+            send(ORDER_DETAIL_TOPIC, orderId, cancelRow);
         }
 
         private void sendUserActiveLog() throws Exception {
@@ -299,13 +319,14 @@ public class KafkaMockDataJob {
             if (value < 10) {
                 return "CREATED";
             }
-            if (value < 75) {
+            if (value < 80) {
                 return "PAID";
             }
-            if (value < 95) {
-                return "FINISHED";
-            }
-            return "REFUNDED";
+            return "FINISHED";
+        }
+
+        private boolean canCancel(String orderStatus) {
+            return "PAID".equals(orderStatus) || "FINISHED".equals(orderStatus);
         }
 
         private BigDecimal randomAmount(int min, int max) {

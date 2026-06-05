@@ -10,7 +10,7 @@ docker-compose up -d
 
 org.linyu.sourcedata.KafkaMockDataJob
 
-org.inyu.order.UnpaidOrderTimeoutJob
+org.linyu.order.UnpaidOrderTimeoutJob
 
 ## 求职意向
 
