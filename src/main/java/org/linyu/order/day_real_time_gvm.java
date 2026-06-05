@@ -142,8 +142,10 @@ public class day_real_time_gvm {
 
         DorisExecutionOptions executionOptions = DorisExecutionOptions.builder()
                 .setLabelPrefix(
-                        ConfigUtil.getString("doris.sink.label.prefix", "flink_doris_label")
-                                + "_daily_gmv"
+                        ConfigUtil.getString(
+                                "doris.sink.label.prefix",
+                                "flink_daily_gmv"
+                        )
                 )
                 .setMaxRetries(3)
                 // Doris connector 要求 bufferFlushMaxRows >= 10000；低延迟由 interval 控制。

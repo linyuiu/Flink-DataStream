@@ -8,6 +8,7 @@ services:
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
+        rest.flamegraph.enabled: true
     volumes:
       - ./flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.3.0-1.19.jar
     networks:
@@ -24,6 +25,7 @@ services:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
         taskmanager.numberOfTaskSlots: 4
+        rest.flamegraph.enabled: true
     volumes:
       - ./flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.3.0-1.19.jar
     networks:
