@@ -1,3 +1,5 @@
 org.linyu.order.day_real_time_gvm
 
 org.linyu.sourcedata.KafkaMockDataJob
+
+org.linyu.demo.gmv_realTime
