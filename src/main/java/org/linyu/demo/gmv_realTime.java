@@ -47,13 +47,17 @@ public class gmv_realTime {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public static void main(String[] args) throws Exception {
+
+        //创建 streaming 流执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
+        //设置 checkpoint 时间以及语义
         env.enableCheckpointing(
                 ConfigUtil.getLong("flink.checkpoint.interval", 10_000L),
                 CheckpointingMode.EXACTLY_ONCE
         );
 
+        //设置 checkpoint 配置
         CheckpointConfig checkpointConfig = env.getCheckpointConfig();
 
         checkpointConfig.setCheckpointTimeout(60_000L);
@@ -226,7 +230,7 @@ public class gmv_realTime {
                 .setFenodes("192.168.9.53:38030")
                 .setTableIdentifier("realtime_ads.gmv_realtime_today")
                 .setUsername("root")
-                .setPassword("")
+                .setPassword("Linyu@2026")
                 .build();
         Properties properties = new Properties();
         properties.setProperty(
