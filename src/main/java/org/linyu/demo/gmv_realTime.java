@@ -79,6 +79,9 @@ public class gmv_realTime {
 
         Configuration flinkConfiguration = new Configuration();
 
+        flinkConfiguration.set(CheckpointingOptions.CHECKPOINT_STORAGE,
+                "filesystem");
+
         flinkConfiguration.set(
                 CheckpointingOptions.CHECKPOINTS_DIRECTORY,
                 property

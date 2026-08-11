@@ -1,5 +1,7 @@
 org.linyu.order.day_real_time_gvm
 
 org.linyu.sourcedata.KafkaMockDataJob
-
+org/linyu/sourcedata/KafkaMockDataJob.java
 org.linyu.demo.gmv_realTime
+
+org.linyu.demo.rcp_gmv_realTime
