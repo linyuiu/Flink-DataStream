@@ -38,6 +38,12 @@ public class OrderContributionProcessFunction
                                Context context,
                                Collector<GmvDeltaRealTime> collector) throws Exception {
 
+        try {
+
+        } catch (IllegalArgumentException e) {
+
+        }
+
         OrderContributionState previousState =
                 previousContributionState.value();
 
@@ -162,19 +168,27 @@ public class OrderContributionProcessFunction
          * 只需要输出：
          * 新贡献 - 旧贡献
          */
+
+        /*同一天，只输出净变化*/
         if (Objects.equals(
                 oldBizDate,
                 newBizDate)) {
-            BigDecimal delta = newContribution.subtract(
-                    oldContribution
-            );
-
             emitDelta(
                     newBizDate,
-                    delta,
+                    newContribution.subtract(oldContribution),
                     orderDetailRealTime.orderId,
                     collector
             );
+//            BigDecimal delta = newContribution.subtract(
+//                    oldContribution
+//            );
+
+//            emitDelta(
+//                    newBizDate,
+//                    delta,
+//                    orderDetailRealTime.orderId,
+//                    collector
+//            );
 
         } else {
             /*
@@ -182,12 +196,13 @@ public class OrderContributionProcessFunction
             * 订单业务日期发生变化。
             * 从旧日期减掉旧恭喜
             * */
+
+            /*日期发生变化：先从旧日期撤销*/
             if (oldBizDate != null
-                    && oldContribution.compareTo(
-                    BigDecimal.ZERO) != 0) {
+                    && oldContribution.compareTo(BigDecimal.ZERO) != 0) {
                 emitDelta(
                         oldBizDate,
-                        oldContribution,
+                        oldContribution.negate(),
                         orderDetailRealTime.orderId,
                         collector
                 );
@@ -197,6 +212,8 @@ public class OrderContributionProcessFunction
             *
             *
             * */
+
+            /*向新日期增加*/
             if (newBizDate != null
                     && newContribution.compareTo(BigDecimal.ZERO) != 0) {
                 emitDelta(

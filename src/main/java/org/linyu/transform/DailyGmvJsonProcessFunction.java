@@ -8,19 +8,25 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.linyu.map.DailyGmvRealTime;
 
+
 /**
  * DailyGmv转换为Doris JSON。
  */
 public class DailyGmvJsonProcessFunction
         extends ProcessFunction<DailyGmvRealTime, String> {
+
     private transient ObjectMapper objectMapper;
+
 
     @Override
     public void processElement(DailyGmvRealTime dailyGmvRealTime,
                                Context context,
                                Collector<String> collector) throws Exception {
 
+
         ObjectNode json = objectMapper.createObjectNode();
+
+
 
         json.put(
                 "biz_date",
@@ -46,6 +52,8 @@ public class DailyGmvJsonProcessFunction
         objectMapper = new ObjectMapper();
 
     }
+
+
 }
 
 

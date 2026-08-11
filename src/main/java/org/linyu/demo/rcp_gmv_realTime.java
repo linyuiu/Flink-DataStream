@@ -11,7 +11,6 @@ import org.apache.flink.streaming.api.datastream.SideOutputDataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.util.OutputTag;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
 
@@ -90,6 +89,10 @@ Doris
                 CheckpointingOptions.CHECKPOINTS_DIRECTORY,
                 property
         );
+
+        env.configure(configuration);
+
+
 
 
         //添加 kafka source
