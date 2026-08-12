@@ -7,7 +7,7 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 
-import org.linyu.config.BusinessTime;
+
 import org.linyu.config.EnumV;
 import org.linyu.map.DailyGmvRealTime;
 import org.linyu.map.GmvDeltaRealTime;
@@ -15,8 +15,7 @@ import org.linyu.map.GmvDeltaRealTime;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+
 
 /**
  * 按照日期累计GMV变化量。
