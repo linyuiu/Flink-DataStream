@@ -10,7 +10,11 @@ import java.util.Properties;
 
 public class DorisSinkRealTime {
 
-    public static DorisSink<String> buildDorisSink(String password, String username, String serverPort, String tableName) {
+    public static DorisSink<String> buildDorisSink(String password,
+                                                   String username,
+                                                   String serverPort,
+                                                   String tableName,
+                                                   String tablePrefix) {
 
         DorisOptions dorisOptions = DorisOptions.builder()
                 .setPassword(password)
@@ -32,8 +36,7 @@ public class DorisSinkRealTime {
                 "true"
         );
         DorisExecutionOptions executionOptions = DorisExecutionOptions.builder()
-                .setLabelPrefix("advanced-realtime-gmv-v1"
-                )
+                .setLabelPrefix(tablePrefix)
                 .setDeletable(false)
                 .setStreamLoadProp(properties)
                 .build();

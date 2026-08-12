@@ -1,5 +1,7 @@
 package org.linyu.config;
 
+import org.apache.flink.util.OutputTag;
+
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
@@ -25,5 +27,10 @@ public  class EnumV {
      * 毛GMV = pay_amount
      */
     public static final boolean DEDUCT_REFUNDS = true;
+    public static final long OUTPUT_INTERVAL_MS =
+            5_000L;
 
+    public static final OutputTag<String> BUSINESS_DIRTY_TAG =
+            new OutputTag<String>("business-dirty-data") {
+            };
 }

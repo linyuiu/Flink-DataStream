@@ -5,13 +5,11 @@ import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.kafka.source.KafkaSource;
-import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.SideOutputDataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
 
 import org.linyu.config.ConfigUtil;
@@ -19,14 +17,15 @@ import org.linyu.map.DailyGmvRealTime;
 import org.linyu.map.GmvDeltaRealTime;
 import org.linyu.map.OrderDetailRealTime;
 import org.linyu.sink.DorisSinkRealTime;
+import org.linyu.source.KafkaSourceConfig;
 import org.linyu.transform.DailyGmvAccumulatorFunction;
 import org.linyu.transform.DailyGmvJsonProcessFunction;
 import org.linyu.transform.OrderContributionProcessFunction;
 import org.linyu.transform.OrderJsonProcessFunction;
+import org.linyu.util.DirtyOutputTags;
 
 
-
-public class rcp_gmv_realTime {
+public class RealtimeDailyGmvJob {
     /*
     * JSON解析
     ↓
@@ -66,7 +65,7 @@ Doris
 
         //配置 checkpoint
         env.enableCheckpointing(
-                ConfigUtil.getLong("flink.checkpoint.interval", 10_1000L),
+                ConfigUtil.getLong("flink.checkpoint.interval", 10_000L),
                 CheckpointingMode.EXACTLY_ONCE
         );
 
@@ -80,19 +79,18 @@ Doris
         checkpointConfig.setMaxConcurrentCheckpoints(1);
         checkpointConfig.setTolerableCheckpointFailureNumber(3);
 
-        String property = System.getProperty(
-                "checkpoint.dir",
-                "file:///tmp/flink/flink-checkpoints/simple-gmv");
-
         Configuration configuration = new Configuration();
+
+        configuration.set(
+                CheckpointingOptions.CHECKPOINT_STORAGE,
+                "filesystem"
+        );
         configuration.set(
                 CheckpointingOptions.CHECKPOINTS_DIRECTORY,
-                property
+                ConfigUtil.getString("flink.checkpoint.directory.dailyGmv")
         );
 
         env.configure(configuration);
-
-
 
 
         //添加 kafka source
@@ -101,12 +99,13 @@ Doris
         KafkaSource<String> kafkaSource = KafkaSource.<String>builder()
                 .setBootstrapServers(ConfigUtil.getString("kafka.bootstrap.servers"))
                 .setTopics(ConfigUtil.getString("kafka.topic.gvm_realtime"))
-                .setGroupId("kafka.group.id.dagGmv")
-                .setStartingOffsets(
-                        OffsetsInitializer.committedOffsets(
-                                OffsetResetStrategy.EARLIEST
-                        )
-                )
+                .setGroupId(ConfigUtil.getString("kafka.group.id.dagGmv"))
+//                .setStartingOffsets(
+//                        OffsetsInitializer.committedOffsets(
+//                                OffsetResetStrategy.EARLIEST
+//                        )
+//                )
+                .setStartingOffsets(KafkaSourceConfig.buildStartingOffsets())
                 // 转化为 json
                 .setValueOnlyDeserializer(
                         new SimpleStringSchema()
@@ -139,7 +138,7 @@ Doris
                 .uid("advanced-parse-order-json");
 
         SideOutputDataStream<String> jsonDirtyStream = orderStream.getSideOutput(
-                OrderJsonProcessFunction.JSON_DIRTY_TAG
+                DirtyOutputTags.JSON_DIRTY_TAG
         );
 
         /*
@@ -161,7 +160,7 @@ Doris
                 .uid("calculate-order-gmv-delta");
 
         SideOutputDataStream<String> businessDirtyStream = deltaStream.getSideOutput(
-                OrderJsonProcessFunction.BUSINESS_DIRTY_TAG
+                DirtyOutputTags.BUSINESS_DIRTY_TAG
         );
 
         /*
@@ -182,7 +181,7 @@ Doris
                         new DailyGmvAccumulatorFunction()
                 )
                 .name("accumulate-daily-gmv")
-                .uid("");
+                .uid("accumulate-daily-gmv");
 
         /*5 转化为  doris json*/
 
@@ -194,12 +193,18 @@ Doris
                 .uid("daily-gmv-to-json");
         /*6 写入 doris*/
 
-        dorisJsonStream.sinkTo(
-                DorisSinkRealTime.buildDorisSink(
-                        ConfigUtil.getString("doris.password"),
-                        ConfigUtil.getString("doris.username"),
-                        ConfigUtil.getString("doris.fenodes"),
-                        ConfigUtil.getString("doris.table.identifier.dailyGmvRealTime")))
+
+
+
+
+        dorisJsonStream.sinkTo(DorisSinkRealTime.buildDorisSink(
+                "",
+                "",
+                "",
+                "",
+                ""
+                        )
+                )
                 .name("advanced-doris-gmv-sink")
                 .uid("advanced-doris-gmv-sink");
 

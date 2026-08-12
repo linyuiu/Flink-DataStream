@@ -6,6 +6,7 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.linyu.map.OrderDetailRealTime;
+import org.linyu.util.DirtyOutputTags;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
@@ -15,13 +16,7 @@ public class OrderJsonProcessFunction
     /**
      * JSON解析失败的脏数据。
      */
-    public static final OutputTag<String> JSON_DIRTY_TAG =
-            new OutputTag<String>("json-dirty-data") {
-            };
 
-    public static final OutputTag<String> BUSINESS_DIRTY_TAG =
-            new OutputTag<String>("business-dirty-data") {
-            };
     private transient ObjectMapper objectMapper;
 
     // json 计算算子
@@ -51,7 +46,7 @@ public class OrderJsonProcessFunction
 
         } catch (Exception e) {
             context.output(
-                    JSON_DIRTY_TAG,
+                    DirtyOutputTags.JSON_DIRTY_TAG,
                     "原始数据"+ s
                     + ",错误原因："
                     + e.getMessage()

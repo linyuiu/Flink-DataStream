@@ -1,15 +1,22 @@
 package org.linyu.transform;
 
 import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.OutputTag;
+
+
+
+import org.linyu.config.ConfigUtil;
 import org.linyu.config.EnumV;
 import org.linyu.map.GmvDeltaRealTime;
 import org.linyu.map.OrderContributionState;
 import org.linyu.map.OrderDetailRealTime;
+import org.linyu.validation.OrderSnapshotValidator;
+import org.linyu.validation.OrderValidationException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -33,15 +40,26 @@ public class OrderContributionProcessFunction
     private transient ValueState<OrderContributionState>
             previousContributionState;
 
+
+
     @Override
     public void processElement(OrderDetailRealTime orderDetailRealTime,
                                Context context,
                                Collector<GmvDeltaRealTime> collector) throws Exception {
 
         try {
+            OrderSnapshotValidator.validate(
+                    orderDetailRealTime
+            );
 
-        } catch (IllegalArgumentException e) {
-
+        } catch (OrderValidationException e) {
+            context.output(
+                    EnumV.BUSINESS_DIRTY_TAG,
+                    "order_id" + orderDetailRealTime.orderId
+                            + ", 业务校验失败"
+                            + e.getMessage()
+            );
+            return;
         }
 
         OrderContributionState previousState =
@@ -64,7 +82,7 @@ public class OrderContributionProcessFunction
             currentVersion = parseVersion(orderDetailRealTime.updateTime);
         } catch (Exception exception) {
             context.output(
-                    BUSINESS_DIRTY_TAG,
+                    EnumV.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "update_time 格式错误："
                             + orderDetailRealTime.updateTime
@@ -82,7 +100,7 @@ public class OrderContributionProcessFunction
                 && previousState.lastVersion != null
                 && currentVersion == null) {
             context.output(
-                    BUSINESS_DIRTY_TAG,
+                    EnumV.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "，历史数据有版本号，"
                             + "当前消息缺少update_time"
@@ -105,7 +123,7 @@ public class OrderContributionProcessFunction
 
         if (newContribution == null) {
             context.output(
-                    BUSINESS_DIRTY_TAG,
+                    EnumV.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "，无法识别的订单状态："
                             + orderDetailRealTime.orderStatus
@@ -152,7 +170,7 @@ public class OrderContributionProcessFunction
                 && newBizDate == null) {
 
             context.output(
-                    BUSINESS_DIRTY_TAG,
+                    EnumV.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "，存在GMV贡献但pay_time为空"
             );
@@ -255,6 +273,25 @@ public class OrderContributionProcessFunction
                 OrderContributionState.class
         );
 
+        StateTtlConfig ttlConfig = StateTtlConfig
+                .newBuilder(Time.days(
+                                ConfigUtil.getInt(
+                                        "flink.state.order.ttl.days",
+                                        30
+                                )
+                        )
+                )
+                .setUpdateType(
+                        StateTtlConfig.UpdateType.OnCreateAndWrite
+                )
+                .setStateVisibility(
+                        StateTtlConfig.StateVisibility.NeverReturnExpired
+                )
+                .build();
+
+        stateDescriptor.enableTimeToLive(ttlConfig);
+
+
         previousContributionState = getRuntimeContext().getState(
                 stateDescriptor
         );
@@ -283,9 +320,7 @@ public class OrderContributionProcessFunction
         return value == null
                 || value.trim().isEmpty();
     }
-    private static final OutputTag<String> BUSINESS_DIRTY_TAG =
-            new OutputTag<String>("business-dirty-data") {
-            };
+
 
 
     /**

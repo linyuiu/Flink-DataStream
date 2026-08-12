@@ -5,3 +5,4 @@ org/linyu/sourcedata/KafkaMockDataJob.java
 org.linyu.demo.gmv_realTime
 
 org.linyu.demo.rcp_gmv_realTime
+org.linyu.demo.RealtimeDailyGmvJob

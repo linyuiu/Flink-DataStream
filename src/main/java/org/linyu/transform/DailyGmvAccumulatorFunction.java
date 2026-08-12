@@ -7,7 +7,8 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 
-
+import org.linyu.config.BusinessTime;
+import org.linyu.config.EnumV;
 import org.linyu.map.DailyGmvRealTime;
 import org.linyu.map.GmvDeltaRealTime;
 
@@ -37,15 +38,7 @@ public class DailyGmvAccumulatorFunction
     private transient ValueState<BigDecimal> totalGmvState;
     private transient ValueState<Long> nextTimerState;
     private transient ValueState<Boolean> dirtyState;
-    private static final long OUTPUT_INTERVAL_MS =
-            5_000L;
-    private static final ZoneId BUSINESS_ZONE =
-            ZoneId.of("Asia/Shanghai");
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER =
-            DateTimeFormatter.ofPattern(
-                    "yyyy-MM-dd HH:mm:ss"
-            );
 
 
 
@@ -84,12 +77,15 @@ public class DailyGmvAccumulatorFunction
             long now = context.timerService()
                     .currentProcessingTime();
 
-            Long nextTimer = now - now % OUTPUT_INTERVAL_MS
-                    + OUTPUT_INTERVAL_MS;
+            long nextTimer = now - now % EnumV.OUTPUT_INTERVAL_MS
+                    + EnumV.OUTPUT_INTERVAL_MS;
+
             context.timerService()
                     .registerProcessingTimeTimer(
                             nextTimer
                     );
+
+            nextTimerState.update(nextTimer);
         }
 
 
@@ -138,22 +134,22 @@ public class DailyGmvAccumulatorFunction
         if (Boolean.TRUE.equals(dirty) && currentTotal != null) {
 
             out.collect(new DailyGmvRealTime(
-                    ctx.getCurrentKey(),
-                    currentTotal,
-                    currentTime()
-            ));
-            nextTimerState.clear();
-            dirtyState.clear();
+                            ctx.getCurrentKey(),
+                            currentTotal,
+                            currentTime()
+                    )
+            );
         }
-
+        nextTimerState.clear();
+        dirtyState.clear();
 
 
 
     }
     private static String currentTime() {
         return LocalDateTime
-                .now(BUSINESS_ZONE)
-                .format(DATE_TIME_FORMATTER);
+                .now(EnumV.BUSINESS_ZONE)
+                .format(EnumV.DATE_TIME_FORMATTER);
     }
 
 }

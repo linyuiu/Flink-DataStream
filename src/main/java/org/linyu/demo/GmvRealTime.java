@@ -38,7 +38,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 import java.time.ZoneId;
 
-public class gmv_realTime {
+public class GmvRealTime {
 
     private static final ZoneId BUSINESS_ZONE =
             ZoneId.of("Asia/Shanghai");
@@ -320,6 +320,7 @@ public class gmv_realTime {
 
         @JsonProperty("dt")
         public String dt;
+
 
         public OrderDetail() {
         }
