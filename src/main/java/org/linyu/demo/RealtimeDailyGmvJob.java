@@ -198,8 +198,8 @@ Doris
 
 
         dorisJsonStream.sinkTo(DorisSinkRealTime.buildDorisSink(
-                ConfigUtil.getString("doris.username"),
                 ConfigUtil.getString("doris.password"),
+                ConfigUtil.getString("doris.username"),
                 ConfigUtil.getString("doris.fenodes"),
                 ConfigUtil.getString("doris.table.identifier.dailyGmvRealTime"),
                 ConfigUtil.getString("doris.sink.label.prefix.gmv-realtime")
