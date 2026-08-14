@@ -5,6 +5,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
+import org.linyu.config.BusinessTime;
+import org.linyu.config.ConfigUtil;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -22,15 +24,16 @@ import java.util.Random;
  */
 public class KafkaMockDataJob {
 
-    private static final String BROKERS = "kafka:9092";
     private static final long INTERVAL_MS = 1000L;
     private static final int USER_COUNT = 200;
     private static final int SKU_COUNT = 50;
-    private static final int CANCEL_ORDER_RATE = 20;
-
-    private static final String ORDER_DETAIL_TOPIC = "dwd_order_detail";
-    private static final String USER_ACTIVE_TOPIC = "dwd_user_active_log";
-    private static final String DIM_USER_TOPIC = "dim_user";
+    private static final int KEEP_UNPAID_RATE = 10;
+    private static final int CANCEL_BEFORE_PAYMENT_RATE = 10;
+    private static final int PARTIAL_REFUND_RATE = 15;
+    private static final int FULL_REFUND_RATE = 10;
+    private static final int PARTIAL_TO_FULL_REFUND_RATE = 20;
+    private static final BigDecimal ZERO_AMOUNT =
+            BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env =
@@ -38,7 +41,17 @@ public class KafkaMockDataJob {
 
         env.setParallelism(1);
 
-        env.addSource(new MockDataProducerSource(INTERVAL_MS, USER_COUNT, SKU_COUNT))
+        MockDataProducerSource source = new MockDataProducerSource(
+                ConfigUtil.getLong("mock.data.order.interval.ms",100L),
+                USER_COUNT,
+                SKU_COUNT,
+                ConfigUtil.getString("kafka.bootstrap.servers"),
+                ConfigUtil.getString("kafka.topic.gvm_realtime_produce"),
+                ConfigUtil.getString("kafka.topic.user.active_produce"),
+                ConfigUtil.getString("kafka.topic.dim.user_produce")
+        );
+
+        env.addSource(source)
                 .name("mock-data-producer-source")
                 .print()
                 .name("mock-data-progress-print");
@@ -172,27 +185,46 @@ public class KafkaMockDataJob {
     private static class MockDataProducerSource extends BaseJsonSource {
 
         private final int skuCount;
+        private final String bootstrapServers;
+        private final String orderDetailTopic;
+        private final String userActiveTopic;
+        private final String dimUserTopic;
 
         private transient KafkaProducer<String, String> producer;
         private long orderSeq = 1L;
         private int currentActiveUserIndex = 1;
         private int currentDimUserIndex = 1;
-        private LocalDate activeLogicalDate = LocalDate.now();
-        private LocalDate dimLogicalDate = LocalDate.now();
+        private LocalDate activeLogicalDate =
+                LocalDate.now(BusinessTime.ZONE_ID);
+        private LocalDate dimLogicalDate =
+                LocalDate.now(BusinessTime.ZONE_ID);
 
-        private MockDataProducerSource(long intervalMs, int userCount, int skuCount) {
+        private MockDataProducerSource(
+                long intervalMs,
+                int userCount,
+                int skuCount,
+                String bootstrapServers,
+                String orderDetailTopic,
+                String userActiveTopic,
+                String dimUserTopic
+        ) {
             super(intervalMs, userCount);
             this.skuCount = skuCount;
+            this.bootstrapServers = bootstrapServers;
+            this.orderDetailTopic = orderDetailTopic;
+            this.userActiveTopic = userActiveTopic;
+            this.dimUserTopic = dimUserTopic;
         }
 
         @Override
         public void open(org.apache.flink.configuration.Configuration parameters) {
             Properties props = new Properties();
-            props.put("bootstrap.servers", BROKERS);
+            props.put("bootstrap.servers", bootstrapServers);
             props.put("key.serializer", StringSerializer.class.getName());
             props.put("value.serializer", StringSerializer.class.getName());
-            props.put("acks", "1");
-            props.put("retries", "3");
+            props.put("acks", "all");
+            props.put("enable.idempotence", "true");
+            props.put("retries", Integer.toString(Integer.MAX_VALUE));
             producer = new KafkaProducer<>(props);
         }
 
@@ -224,53 +256,149 @@ public class KafkaMockDataJob {
 
         private void sendOrderDetail() throws Exception {
             LocalDateTime createTime =
-                    LocalDateTime.now().minusMinutes(random.nextInt(120));
-            String orderStatus = randomOrderStatus();
-            LocalDateTime payTime =
-                    "CREATED".equals(orderStatus)
-                            ? null
-                            : createTime.plusMinutes(1 + random.nextInt(30));
-
-            BigDecimal payAmount = randomAmount(20, 500);
-            BigDecimal refundAmount =
-                    "REFUNDED".equals(orderStatus)
-                            ? payAmount
-                            : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+                    LocalDateTime.now(BusinessTime.ZONE_ID)
+                            .minusMinutes(2 + random.nextInt(119));
+            BigDecimal orderAmount = randomAmount(20, 500);
 
             String orderId = "O" + System.currentTimeMillis() + "_" + orderSeq++;
 
+            /*
+             * 每条消息都是订单当前时刻的全量快照：
+             * 同一个订单始终使用相同 Kafka key，保证进入同一分区并保持状态顺序。
+             */
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("order_id", orderId);
             row.put("user_id", userId(1 + random.nextInt(userCount)));
             row.put("sku_id", String.valueOf(1 + random.nextInt(skuCount)));
-            row.put("pay_amount", payAmount);
-            row.put("refund_amount", refundAmount);
-            row.put("order_status", orderStatus);
-            row.put("create_time", createTime.format(DATE_TIME_FORMATTER));
-            row.put(
-                    "pay_time",
-                    payTime == null ? "" : payTime.format(DATE_TIME_FORMATTER)
-            );
+            row.put("order_amount", orderAmount);
+            row.put("pay_amount", ZERO_AMOUNT);
+            row.put("refund_amount", ZERO_AMOUNT);
+            row.put("order_status", "UNPAID");
+            row.put("create_time", format(createTime));
+            row.put("pay_time", "");
+            row.put("update_time", format(createTime));
             row.put("dt", dt(createTime));
 
-            send(ORDER_DETAIL_TOPIC, orderId, row);
+            send(orderDetailTopic, orderId, row);
 
-            if (canCancel(orderStatus) && random.nextInt(100) < CANCEL_ORDER_RATE) {
-                sendCancelOrderDetail(orderId, row, payAmount);
+            int paymentOutcome = random.nextInt(100);
+
+            // 一部分订单保留在待支付状态，模拟真实在途订单。
+            if (paymentOutcome < KEEP_UNPAID_RATE) {
+                return;
+            }
+
+            LocalDateTime firstUpdateTime =
+                    createTime.plusSeconds(1 + random.nextInt(30));
+
+            // 未支付订单只能取消，不应伪装成退款订单。
+            if (paymentOutcome
+                    < KEEP_UNPAID_RATE + CANCEL_BEFORE_PAYMENT_RATE) {
+                sendCancelledSnapshot(orderId, row, firstUpdateTime);
+                return;
+            }
+
+            LocalDateTime payTime = firstUpdateTime;
+            sendPaidSnapshot(orderId, row, orderAmount, payTime);
+
+            int refundOutcome = random.nextInt(100);
+            if (refundOutcome < PARTIAL_REFUND_RATE) {
+                BigDecimal partialRefund = randomPartialRefund(orderAmount);
+                LocalDateTime refundTime =
+                        payTime.plusSeconds(1 + random.nextInt(30));
+
+                sendRefundSnapshot(
+                        orderId,
+                        row,
+                        orderAmount,
+                        partialRefund,
+                        "PART_REFUNDED",
+                        refundTime
+                );
+
+                if (random.nextInt(100) < PARTIAL_TO_FULL_REFUND_RATE) {
+                    sendRefundSnapshot(
+                            orderId,
+                            row,
+                            orderAmount,
+                            orderAmount,
+                            "REFUNDED",
+                            refundTime.plusSeconds(1 + random.nextInt(30))
+                    );
+                }
+            } else if (refundOutcome
+                    < PARTIAL_REFUND_RATE + FULL_REFUND_RATE) {
+                sendRefundSnapshot(
+                        orderId,
+                        row,
+                        orderAmount,
+                        orderAmount,
+                        "REFUNDED",
+                        payTime.plusSeconds(1 + random.nextInt(30))
+                );
             }
         }
 
-        private void sendCancelOrderDetail(
+        private void sendCancelledSnapshot(
                 String orderId,
-                Map<String, Object> paidOrderRow,
-                BigDecimal payAmount
+                Map<String, Object> currentSnapshot,
+                LocalDateTime updateTime
         ) throws Exception {
-            Map<String, Object> cancelRow = new LinkedHashMap<>(paidOrderRow);
-            cancelRow.put("refund_amount", payAmount);
+            Map<String, Object> cancelRow =
+                    new LinkedHashMap<>(currentSnapshot);
             cancelRow.put("order_status", "CANCELLED");
+            updateVersionFields(cancelRow, updateTime);
 
-            // 使用同一个 order_id 模拟订单状态更新，Kafka 同 key 可以保证同分区内顺序。
-            send(ORDER_DETAIL_TOPIC, orderId, cancelRow);
+            send(orderDetailTopic, orderId, cancelRow);
+            currentSnapshot.clear();
+            currentSnapshot.putAll(cancelRow);
+        }
+
+        private void sendPaidSnapshot(
+                String orderId,
+                Map<String, Object> currentSnapshot,
+                BigDecimal payAmount,
+                LocalDateTime payTime
+        ) throws Exception {
+            Map<String, Object> paidRow =
+                    new LinkedHashMap<>(currentSnapshot);
+            paidRow.put("pay_amount", payAmount);
+            paidRow.put("refund_amount", ZERO_AMOUNT);
+            paidRow.put("order_status", "PAID");
+            paidRow.put("pay_time", format(payTime));
+            updateVersionFields(paidRow, payTime);
+
+            send(orderDetailTopic, orderId, paidRow);
+            currentSnapshot.clear();
+            currentSnapshot.putAll(paidRow);
+        }
+
+        private void sendRefundSnapshot(
+                String orderId,
+                Map<String, Object> currentSnapshot,
+                BigDecimal payAmount,
+                BigDecimal cumulativeRefundAmount,
+                String status,
+                LocalDateTime updateTime
+        ) throws Exception {
+            Map<String, Object> refundRow =
+                    new LinkedHashMap<>(currentSnapshot);
+            refundRow.put("pay_amount", payAmount);
+            refundRow.put("refund_amount", cumulativeRefundAmount);
+            refundRow.put("order_status", status);
+            updateVersionFields(refundRow, updateTime);
+
+            send(orderDetailTopic, orderId, refundRow);
+            currentSnapshot.clear();
+            currentSnapshot.putAll(refundRow);
+        }
+
+        private void updateVersionFields(
+                Map<String, Object> row,
+                LocalDateTime updateTime
+        ) {
+            row.put("update_time", format(updateTime));
+            row.put("dt", dt(updateTime));
         }
 
         private void sendUserActiveLog() throws Exception {
@@ -281,7 +409,7 @@ public class KafkaMockDataJob {
             row.put("active_time", activeTime.format(DATE_TIME_FORMATTER));
             row.put("dt", activeLogicalDate.toString());
 
-            send(USER_ACTIVE_TOPIC, row.get("user_id").toString(), row);
+            send(userActiveTopic, row.get("user_id").toString(), row);
 
             currentActiveUserIndex++;
             if (currentActiveUserIndex > userCount) {
@@ -300,7 +428,7 @@ public class KafkaMockDataJob {
             row.put("register_time", registerTime.format(DATE_TIME_FORMATTER));
             row.put("dt", dimLogicalDate.toString());
 
-            send(DIM_USER_TOPIC, row.get("user_id").toString(), row);
+            send(dimUserTopic, row.get("user_id").toString(), row);
 
             currentDimUserIndex++;
             if (currentDimUserIndex > userCount) {
@@ -311,27 +439,29 @@ public class KafkaMockDataJob {
         }
 
         private void send(String topic, String key, Map<String, Object> row) throws Exception {
-            producer.send(new ProducerRecord<>(topic, key, toJson(row)));
+            // 等待 broker 确认，避免模拟器表面运行但消息异步发送失败。
+            producer.send(
+                    new ProducerRecord<>(topic, key, toJson(row))
+            ).get();
         }
 
-        private String randomOrderStatus() {
-            int value = random.nextInt(100);
-            if (value < 10) {
-                return "CREATED";
-            }
-            if (value < 80) {
-                return "PAID";
-            }
-            return "FINISHED";
-        }
+        private BigDecimal randomPartialRefund(BigDecimal payAmount) {
+            int payAmountInCents =
+                    payAmount.movePointRight(2).intValueExact();
+            int refundInCents =
+                    1 + random.nextInt(payAmountInCents - 1);
 
-        private boolean canCancel(String orderStatus) {
-            return "PAID".equals(orderStatus) || "FINISHED".equals(orderStatus);
+            return BigDecimal.valueOf(refundInCents, 2)
+                    .setScale(2, RoundingMode.HALF_UP);
         }
 
         private BigDecimal randomAmount(int min, int max) {
             double amount = min + random.nextDouble() * (max - min);
             return BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        private String format(LocalDateTime dateTime) {
+            return dateTime.format(DATE_TIME_FORMATTER);
         }
     }
 

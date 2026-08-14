@@ -9,12 +9,13 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 
-
+import org.linyu.config.BusinessTime;
 import org.linyu.config.ConfigUtil;
-import org.linyu.config.EnumV;
 import org.linyu.map.GmvDeltaRealTime;
 import org.linyu.map.OrderContributionState;
 import org.linyu.map.OrderDetailRealTime;
+import org.linyu.config.EnumV;
+import org.linyu.util.DirtyOutputTags;
 import org.linyu.validation.OrderSnapshotValidator;
 import org.linyu.validation.OrderValidationException;
 
@@ -37,6 +38,7 @@ public class OrderContributionProcessFunction
         String,
         OrderDetailRealTime,
         GmvDeltaRealTime> {
+
     private transient ValueState<OrderContributionState>
             previousContributionState;
 
@@ -54,7 +56,7 @@ public class OrderContributionProcessFunction
 
         } catch (OrderValidationException e) {
             context.output(
-                    EnumV.BUSINESS_DIRTY_TAG,
+                    DirtyOutputTags.BUSINESS_DIRTY_TAG,
                     "order_id" + orderDetailRealTime.orderId
                             + ", 业务校验失败"
                             + e.getMessage()
@@ -100,7 +102,7 @@ public class OrderContributionProcessFunction
                 && previousState.lastVersion != null
                 && currentVersion == null) {
             context.output(
-                    EnumV.BUSINESS_DIRTY_TAG,
+                    DirtyOutputTags.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "，历史数据有版本号，"
                             + "当前消息缺少update_time"
@@ -123,7 +125,7 @@ public class OrderContributionProcessFunction
 
         if (newContribution == null) {
             context.output(
-                    EnumV.BUSINESS_DIRTY_TAG,
+                    DirtyOutputTags.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "，无法识别的订单状态："
                             + orderDetailRealTime.orderStatus
@@ -170,7 +172,7 @@ public class OrderContributionProcessFunction
                 && newBizDate == null) {
 
             context.output(
-                    EnumV.BUSINESS_DIRTY_TAG,
+                    DirtyOutputTags.BUSINESS_DIRTY_TAG,
                     "order_id=" + orderDetailRealTime.orderId
                             + "，存在GMV贡献但pay_time为空"
             );
@@ -402,7 +404,7 @@ public class OrderContributionProcessFunction
             );
         }
 
-        return dateTime.substring(0, 10);
+        return BusinessTime.parseDateTime(dateTime).toString().substring(0, 10);
     }
 
     private void emitDelta(

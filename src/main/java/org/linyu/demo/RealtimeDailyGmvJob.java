@@ -98,7 +98,7 @@ Doris
 
         KafkaSource<String> kafkaSource = KafkaSource.<String>builder()
                 .setBootstrapServers(ConfigUtil.getString("kafka.bootstrap.servers"))
-                .setTopics(ConfigUtil.getString("kafka.topic.gvm_realtime"))
+                .setTopics(ConfigUtil.getString("kafka.topic.gvm_realtime_produce"))
                 .setGroupId(ConfigUtil.getString("kafka.group.id.dagGmv"))
 //                .setStartingOffsets(
 //                        OffsetsInitializer.committedOffsets(
@@ -201,7 +201,7 @@ Doris
                 ConfigUtil.getString("doris.password"),
                 ConfigUtil.getString("doris.username"),
                 ConfigUtil.getString("doris.fenodes"),
-                ConfigUtil.getString("doris.table.identifier.dailyGmvRealTime"),
+                ConfigUtil.getString("doris.table.identifier.dailyGmvRealTimeNew"),
                 ConfigUtil.getString("doris.sink.label.prefix.gmv-realtime")
                         )
                 )
