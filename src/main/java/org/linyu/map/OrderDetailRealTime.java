@@ -36,6 +36,17 @@ public class OrderDetailRealTime implements Serializable {
 
     @JsonProperty("dt")
     public String dt;
+    @JsonProperty("order_version")
+    public Long orderVersion;
+
+    @JsonProperty("event_id")
+    public String eventId;
+
+    @JsonProperty("record_grain")
+    public String recordGrain;
+
+    @JsonProperty("currency_code")
+    public String currencyCode;
 
     /*
      * 推荐上游增加的事件版本时间。

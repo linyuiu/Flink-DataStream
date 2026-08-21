@@ -20,13 +20,17 @@ import java.util.Properties;
 import java.util.Random;
 
 /**
- * 向 Kafka 写入 DWD/维度模拟数据。
+ * 向 Kafka 写入订单级全量快照、用户活跃日志和用户维度模拟数据。
+ *
+ * <p>订单主题的每条消息表示一个订单在某个版本下的完整状态，
+ * 不表示单个 SKU 明细。相同订单始终使用 order_id 作为 Kafka key。</p>
  */
 public class KafkaMockDataJob {
 
-    private static final long INTERVAL_MS = 1000L;
+    private static final int ORDER_SCHEMA_VERSION = 1;
+    private static final String ORDER_RECORD_GRAIN = "ORDER";
+    private static final String CURRENCY_CODE = "CNY";
     private static final int USER_COUNT = 200;
-    private static final int SKU_COUNT = 50;
     private static final int KEEP_UNPAID_RATE = 10;
     private static final int CANCEL_BEFORE_PAYMENT_RATE = 10;
     private static final int PARTIAL_REFUND_RATE = 15;
@@ -42,9 +46,8 @@ public class KafkaMockDataJob {
         env.setParallelism(1);
 
         MockDataProducerSource source = new MockDataProducerSource(
-                ConfigUtil.getLong("mock.data.order.interval.ms",100L),
+                ConfigUtil.getLong("mock.data.order.interval.ms", 100L),
                 USER_COUNT,
-                SKU_COUNT,
                 ConfigUtil.getString("kafka.bootstrap.servers"),
                 ConfigUtil.getString("kafka.topic.gvm_realtime_produce"),
                 ConfigUtil.getString("kafka.topic.user.active_produce"),
@@ -184,9 +187,8 @@ public class KafkaMockDataJob {
 
     private static class MockDataProducerSource extends BaseJsonSource {
 
-        private final int skuCount;
         private final String bootstrapServers;
-        private final String orderDetailTopic;
+        private final String orderSnapshotTopic;
         private final String userActiveTopic;
         private final String dimUserTopic;
 
@@ -202,16 +204,14 @@ public class KafkaMockDataJob {
         private MockDataProducerSource(
                 long intervalMs,
                 int userCount,
-                int skuCount,
                 String bootstrapServers,
-                String orderDetailTopic,
+                String orderSnapshotTopic,
                 String userActiveTopic,
                 String dimUserTopic
         ) {
             super(intervalMs, userCount);
-            this.skuCount = skuCount;
             this.bootstrapServers = bootstrapServers;
-            this.orderDetailTopic = orderDetailTopic;
+            this.orderSnapshotTopic = orderSnapshotTopic;
             this.userActiveTopic = userActiveTopic;
             this.dimUserTopic = dimUserTopic;
         }
@@ -233,7 +233,7 @@ public class KafkaMockDataJob {
             long count = 0L;
 
             while (isRunning()) {
-                sendOrderDetail();
+                sendOrderSnapshotLifecycle();
                 sendUserActiveLog();
                 sendDimUser();
 
@@ -254,7 +254,7 @@ public class KafkaMockDataJob {
             }
         }
 
-        private void sendOrderDetail() throws Exception {
+        private void sendOrderSnapshotLifecycle() throws Exception {
             LocalDateTime createTime =
                     LocalDateTime.now(BusinessTime.ZONE_ID)
                             .minusMinutes(2 + random.nextInt(119));
@@ -267,19 +267,25 @@ public class KafkaMockDataJob {
              * 同一个订单始终使用相同 Kafka key，保证进入同一分区并保持状态顺序。
              */
             Map<String, Object> row = new LinkedHashMap<>();
+            row.put("schema_version", ORDER_SCHEMA_VERSION);
+            row.put("record_grain", ORDER_RECORD_GRAIN);
+            row.put("event_id", eventId(orderId, 1L));
             row.put("order_id", orderId);
+            row.put("order_version", 1L);
             row.put("user_id", userId(1 + random.nextInt(userCount)));
-            row.put("sku_id", String.valueOf(1 + random.nextInt(skuCount)));
+            row.put("currency_code", CURRENCY_CODE);
+            row.put("order_item_count", 1 + random.nextInt(5));
             row.put("order_amount", orderAmount);
             row.put("pay_amount", ZERO_AMOUNT);
             row.put("refund_amount", ZERO_AMOUNT);
             row.put("order_status", "UNPAID");
             row.put("create_time", format(createTime));
             row.put("pay_time", "");
+            row.put("refund_time", "");
             row.put("update_time", format(createTime));
             row.put("dt", dt(createTime));
 
-            send(orderDetailTopic, orderId, row);
+            send(orderSnapshotTopic, orderId, row);
 
             int paymentOutcome = random.nextInt(100);
 
@@ -312,7 +318,7 @@ public class KafkaMockDataJob {
                         row,
                         orderAmount,
                         partialRefund,
-                        "PART_REFUNDED",
+                        "PARTIALLY_REFUNDED",
                         refundTime
                 );
 
@@ -347,9 +353,10 @@ public class KafkaMockDataJob {
             Map<String, Object> cancelRow =
                     new LinkedHashMap<>(currentSnapshot);
             cancelRow.put("order_status", "CANCELLED");
+            cancelRow.put("refund_time", "");
             updateVersionFields(cancelRow, updateTime);
 
-            send(orderDetailTopic, orderId, cancelRow);
+            send(orderSnapshotTopic, orderId, cancelRow);
             currentSnapshot.clear();
             currentSnapshot.putAll(cancelRow);
         }
@@ -366,9 +373,10 @@ public class KafkaMockDataJob {
             paidRow.put("refund_amount", ZERO_AMOUNT);
             paidRow.put("order_status", "PAID");
             paidRow.put("pay_time", format(payTime));
+            paidRow.put("refund_time", "");
             updateVersionFields(paidRow, payTime);
 
-            send(orderDetailTopic, orderId, paidRow);
+            send(orderSnapshotTopic, orderId, paidRow);
             currentSnapshot.clear();
             currentSnapshot.putAll(paidRow);
         }
@@ -386,9 +394,10 @@ public class KafkaMockDataJob {
             refundRow.put("pay_amount", payAmount);
             refundRow.put("refund_amount", cumulativeRefundAmount);
             refundRow.put("order_status", status);
+            refundRow.put("refund_time", format(updateTime));
             updateVersionFields(refundRow, updateTime);
 
-            send(orderDetailTopic, orderId, refundRow);
+            send(orderSnapshotTopic, orderId, refundRow);
             currentSnapshot.clear();
             currentSnapshot.putAll(refundRow);
         }
@@ -397,8 +406,21 @@ public class KafkaMockDataJob {
                 Map<String, Object> row,
                 LocalDateTime updateTime
         ) {
+            long currentVersion = ((Number) row.get("order_version"))
+                    .longValue();
+            long nextVersion = currentVersion + 1L;
+
+            row.put("order_version", nextVersion);
+            row.put("event_id", eventId(
+                    row.get("order_id").toString(),
+                    nextVersion
+            ));
             row.put("update_time", format(updateTime));
             row.put("dt", dt(updateTime));
+        }
+
+        private String eventId(String orderId, long orderVersion) {
+            return orderId + "-v" + orderVersion;
         }
 
         private void sendUserActiveLog() throws Exception {
