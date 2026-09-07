@@ -1,0 +1,30 @@
+{
+  "name": "linyureal-mysql",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "mysql",
+    "database.port": "3306",
+    "database.user": "cdc_reader",
+    "database.password": "REPLACE_WITH_CDC_SECRET",
+    "database.server.id": "5401",
+    "topic.prefix": "lr-source",
+    "database.include.list": "linyureal",
+    "table.include.list": "linyureal.trade_.*,linyureal.dim_.*",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+    "schema.history.internal.kafka.topic": "lr.internal.schema-history",
+    "snapshot.mode": "initial",
+    "include.schema.changes": "false",
+    "time.precision.mode": "connect",
+    "database.connectionTimeZone": "Asia/Shanghai",
+    "tombstones.on.delete": "true",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "transforms": "route",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "lr-source\\.linyureal\\.(.*)",
+    "transforms.route.replacement": "lr.ods.$1"
+  }
+}

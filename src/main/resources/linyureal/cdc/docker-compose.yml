@@ -1,0 +1,31 @@
+# Optional CDC lab. Uses the existing flink-network for Kafka at kafka:9092.
+services:
+  mysql:
+    image: mysql:8.0.40
+    command: ["--server-id=5400", "--log-bin=mysql-bin", "--binlog-format=ROW", "--binlog-row-image=FULL", "--binlog-expire-logs-seconds=604800"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LINYUREAL_MYSQL_PASSWORD:?set LINYUREAL_MYSQL_PASSWORD}
+    ports: ["3307:3306"]
+    volumes:
+      - lr_mysql:/var/lib/mysql
+      - ../mysql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks: [flink-network]
+  connect:
+    image: quay.io/debezium/connect:2.7
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: lr-connect
+      CONFIG_STORAGE_TOPIC: lr.connect.config
+      OFFSET_STORAGE_TOPIC: lr.connect.offset
+      STATUS_STORAGE_TOPIC: lr.connect.status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    ports: ["8083:8083"]
+    depends_on: [mysql]
+    networks: [flink-network]
+volumes:
+  lr_mysql:
+networks:
+  flink-network:
+    external: true
