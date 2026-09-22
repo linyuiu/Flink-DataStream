@@ -1,0 +1,13 @@
+# Isolated lab database. No container is started by code-generation/testing.
+services:
+  commerce-mysql:
+    image: mysql:8.0.40
+    command: ["--server-id=7099","--log-bin=mysql-bin","--binlog-format=ROW","--binlog-row-image=FULL","--binlog-expire-logs-seconds=1209600"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${COMMERCE_MYSQL_PASSWORD:?set COMMERCE_MYSQL_PASSWORD}
+    ports: ["3308:3306"]
+    volumes:
+      - commerce_mysql:/var/lib/mysql
+      - ./sql/mysql.sql:/docker-entrypoint-initdb.d/01-commerce.sql:ro
+volumes:
+  commerce_mysql:

@@ -1,0 +1,3 @@
+# Kafka运行数据由Docker生成，不提交到Git。
+*
+!.gitignore

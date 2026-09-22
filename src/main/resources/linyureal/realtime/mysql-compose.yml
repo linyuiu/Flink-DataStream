@@ -1,0 +1,13 @@
+# Optional isolated lab MySQL only. No service starts automatically.
+services:
+  rt-mysql:
+    image: mysql:8.0.40
+    command: ["--server-id=6099", "--log-bin=mysql-bin", "--binlog-format=ROW", "--binlog-row-image=FULL", "--binlog-expire-logs-seconds=604800"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${RTTRADE_MYSQL_PASSWORD:?set RTTRADE_MYSQL_PASSWORD}
+    ports: ["3307:3306"]
+    volumes:
+      - rttrade_mysql:/var/lib/mysql
+      - ./sql/mysql.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+volumes:
+  rttrade_mysql:

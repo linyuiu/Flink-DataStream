@@ -54,6 +54,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 显式指定Kafka数据目录；Broker日志和KRaft元数据都持久化到Compose文件旁的kafka-data目录。
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    volumes:
+      - ./kafka-data:/tmp/kraft-combined-logs
     networks:
       - flink-network
 

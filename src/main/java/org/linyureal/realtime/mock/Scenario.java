@@ -1,0 +1,6 @@
+package org.linyureal.realtime.mock;
+
+public enum Scenario {
+    PAID, CANCELLED, PAYMENT_FAILED, RETRY_PAID, PARTIAL_REFUND,
+    MULTIPLE_REFUNDS, FULL_GOODS_REFUND, REFUND_FAILED, CROSS_DAY_REFUND
+}
